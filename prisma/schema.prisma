@@ -1,0 +1,1319 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// ============================================================================
+// # RANKKS PRISMA SCHEMA
+//
+// Organization:
+// 1. Prisma Configuration
+// 2. Core Domain Models (Sport, Region, League, Venue, etc.)
+// 3. Data Master & Source-Specific Models
+// 4. Data & Results Models
+// 5. User, Authentication & Personalization Models (User, Account, Notification, etc.)
+// 6. Content & Media Models (Article, Video, etc.)
+// 7. Analytics & Logging Models
+// 8. System & Data Management Models
+// 9. Enumerations
+// ============================================================================
+
+// ============================================================================
+// 1. PRISMA CONFIGURATION
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// 2. CORE DOMAIN MODELS
+// ============================================================================
+
+model Sport {
+  id           String    @id @default(cuid())
+  name         String    @db.VarChar(100)
+  slug         String    @unique @db.VarChar(100)
+  displayOrder Int       @default(0) @map("display_order")
+  iconUrl      String?   @map("icon_url") @db.VarChar(500)
+  isActive     Boolean   @default(true) @map("is_active")
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  leagues         League[]
+  events          Event[]
+  userActivity    UserActivity[]
+  regionSports    RegionSport[]
+  articles        Article[]
+
+  @@index([isActive, displayOrder])
+  @@map("sports")
+}
+
+model Region {
+  id             String     @id @default(cuid())
+  name           String     @db.VarChar(100)
+  officialName   String?    @map("official_name") @db.VarChar(200)
+  localName      String?    @map("local_name") @db.VarChar(200)
+  code           String     @unique @db.VarChar(10)
+  flagUrl        String?    @map("flag_url") @db.VarChar(500)
+  timezone       String     @default("UTC") @db.VarChar(50)
+  isActive       Boolean    @default(true) @map("is_active")
+  parentRegionId String?    @map("parent_region_id")
+  regionType     RegionType @default(COUNTRY) @map("region_type")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  regionSports          RegionSport[]
+  regionalContent       RegionalContent[]
+  userRegions           UserRegion[]
+  parentRegion          Region?        @relation("RegionHierarchy", fields: [parentRegionId], references: [id])
+  childRegions          Region[]       @relation("RegionHierarchy")
+  leagues               League[]       @relation("LeagueCountry")
+  teams                 TeamMaster[]   @relation("TeamCountry")
+  playerNationalities   PlayerMaster[] @relation("PlayerNationality")
+  playerBirthCountries  PlayerMaster[] @relation("PlayerBirthCountry")
+  users                 User[]         @relation("UserCountry")
+
+  @@index([parentRegionId, regionType])
+  @@map("regions")
+}
+
+model RegionSport {
+  id        String   @id @default(cuid())
+  regionId  String   @map("region_id")
+  sportId   String   @map("sport_id")
+  priority  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  sport  Sport  @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([regionId, sportId])
+  @@map("region_sports")
+}
+
+model League {
+  id                   String        @id @default(cuid())
+  sportId              String        @map("sport_id")
+  name                 String        @db.VarChar(200)
+  slug                 String        @unique @db.VarChar(200)
+  gender               GenderType    @default(MALE) // Fundamental field for filtering
+  level                Int?          @default(1)    // League tier (e.g., 1st division, 2nd division)
+  countryRegionId      String?       @map("country_region_id")
+  logoUrl              String?       @map("logo_url") @db.VarChar(500)
+  backgroundImageUrl   String?       @map("background_image_url") @db.VarChar(500)
+  displayOrder         Int           @default(0) @map("display_order")
+  isActive             Boolean       @default(true) @map("is_active")
+  defaultDisplayFormat DisplayFormat @default(SINGLE_LINE) @map("default_display_format")
+  deletedAt            DateTime?     @map("deleted_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  sport          Sport           @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  countryRegion  Region?         @relation("LeagueCountry", fields: [countryRegionId], references: [id], onDelete: SetNull)
+  seasons        Season[]
+  userFavorites  UserFavorite[]
+  userActivity   UserActivity[]
+  videos         Video[]
+  articles       Article[]
+
+  @@index([sportId, gender, level, isActive])
+  @@index([countryRegionId, displayOrder])
+  @@map("leagues")
+}
+
+model Season {
+  id        String    @id @default(cuid())
+  leagueId  String    @map("league_id")
+  year      Int
+  name      String    @db.VarChar(100)
+  startDate DateTime? @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  isCurrent Boolean   @default(false) @map("is_current")
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  league League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  events Event[]
+  videos Video[]
+  standings Standing[]
+
+  @@unique([leagueId, year])
+  @@index([leagueId, isCurrent])
+  @@map("seasons")
+}
+
+model Venue {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(200)
+  city        String?  @db.VarChar(100)
+  countryCode String?  @map("country_code") @db.VarChar(10)
+  capacity    Int?
+  imageUrl    String?  @map("image_url") @db.VarChar(500)
+  address     String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  events Event[]
+
+  @@map("venues")
+}
+
+model Event {
+  id                 String              @id @default(cuid())
+  seasonId           String              @map("season_id")
+  sportId            String              @map("sport_id")
+  name               String              @db.VarChar(200)
+  slug               String              @db.VarChar(200)
+  gender             GenderType?         // Can override league gender for special events like mixed doubles
+  eventDate          DateTime            @map("event_date") @db.Date
+  eventTime          DateTime?           @map("event_time") @db.Time
+  timezone           String              @default("UTC") @db.VarChar(50)
+  status             EventStatus         @default(SCHEDULED)
+  venueId            String?             @map("venue_id")
+  eventType          EventType           @default(GAME) @map("event_type")
+  displayFormat      DisplayFormat       @default(SINGLE_LINE) @map("display_format")
+  contentTypes       EventContentType[]  @map("content_types")
+  backgroundImageUrl String?             @map("background_image_url") @db.VarChar(500)
+  isFeatured         Boolean             @default(false) @map("is_featured")
+  hasLiveData        Boolean             @default(false) @map("has_live_data")
+  needsUpdate        Boolean             @default(false) @map("needs_update")
+  dataFreshness      DataFreshness       @default(STATIC) @map("data_freshness")
+  lastDataUpdate     DateTime?           @map("last_data_update")
+  nextUpdateDue      DateTime?           @map("next_update_due")
+  updateFrequency    Int?                @map("update_frequency")
+  liveUpdateCount    Int                 @default(0) @map("live_update_count")
+  maxLiveUpdates     Int                 @default(100) @map("max_live_updates")
+  deletedAt          DateTime?           @map("deleted_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  season       Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  sport        Sport           @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  venue        Venue?          @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  gameResults  GameResult[]
+  videos       Video[]
+  articles     Article[]
+  userActivity UserActivity[]
+  eventTags    EventTag[]
+  liveState    LiveEventState?
+
+  @@unique([seasonId, slug])
+  @@index([sportId, gender, eventDate, status])
+  @@map("events")
+}
+
+model LiveEventState {
+  id              String   @id @default(cuid())
+  eventId         String   @unique @map("event_id")
+  currentState    Json     @map("current_state")
+  stateHash       String   @map("state_hash") @db.VarChar(64)
+  lastStateChange DateTime @default(now()) @map("last_state_change")
+  subscriberCount Int      @default(0) @map("subscriber_count")
+  updateFrequency Int      @default(30) @map("update_frequency")
+  isActive        Boolean  @default(true) @map("is_active")
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([isActive, lastStateChange])
+  @@map("live_event_states")
+}
+
+model Tag {
+  id          String      @id @default(cuid())
+  name        String      @db.VarChar(100)
+  slug        String      @unique @db.VarChar(100)
+  description String?     @db.VarChar(500)
+  color       String?     @db.VarChar(20)
+  category    TagCategory @default(GENERAL)
+  priority    Int         @default(0)
+  isActive    Boolean     @default(true) @map("is_active")
+  isSystem    Boolean     @default(false) @map("is_system")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  eventTags EventTag[]
+
+  @@index([category, priority])
+  @@map("tags")
+}
+
+model EventTag {
+  id              String   @id @default(cuid())
+  eventId         String   @map("event_id")
+  tagId           String   @map("tag_id")
+  addedBy         String?  @map("added_by")
+  confidence      Float    @default(1.0)
+  isAutoGenerated Boolean  @default(false) @map("is_auto_generated")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, tagId])
+  @@map("event_tags")
+}
+
+// ============================================================================
+// 3. DATA MASTER & SOURCE-SPECIFIC MODELS
+// ============================================================================
+
+model TeamMaster {
+  id              String   @id @default(cuid())
+  canonicalName   String   @map("canonical_name") @db.VarChar(200)
+  slug            String   @unique @db.VarChar(200)
+  shortName       String?  @map("short_name") @db.VarChar(50)
+  countryRegionId String?  @map("country_region_id")
+  logoUrl         String?  @map("logo_url") @db.VarChar(500)
+  foundedYear     Int?     @map("founded_year")
+  version         Int      @default(1)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  countryRegion Region?        @relation("TeamCountry", fields: [countryRegionId], references: [id], onDelete: SetNull)
+  teams         Team[]
+  userFavorites UserFavorite[]
+  articles      Article[]
+
+  @@index([canonicalName, version])
+  @@map("team_masters")
+}
+
+model Team {
+  id           String   @id @default(cuid())
+  masterTeamId String   @map("master_team_id")
+  name         String   @db.VarChar(200)
+  sourceId     String   @map("source_id")
+  externalId   String?  @map("external_id") @db.VarChar(100)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  masterTeam         TeamMaster          @relation(fields: [masterTeamId], references: [id], onDelete: Cascade)
+  gameParticipations GameParticipant[]
+  standings          Standing[]
+  source             DataSource          @relation(fields: [sourceId], references: [id])
+
+  @@unique([sourceId, externalId])
+  @@map("teams")
+}
+
+model PlayerMaster {
+  id                    String    @id @default(cuid())
+  canonicalName         String    @map("canonical_name") @db.VarChar(200)
+  firstName             String    @map("first_name") @db.VarChar(100)
+  lastName              String    @map("last_name") @db.VarChar(100)
+  slug                  String    @unique @db.VarChar(200)
+  gender                GenderType // Fundamental field for player categorization
+  nationalityRegionId   String?   @map("nationality_region_id")
+  birthCountryRegionId  String?   @map("birth_country_region_id") // Distinction for birth country vs playing nationality
+  birthDate             DateTime? @map("birth_date") @db.Date
+  photoUrl              String?   @map("photo_url") @db.VarChar(500)
+  position              String?   @db.VarChar(50)
+  version               Int       @default(1)
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  nationalityRegion     Region?   @relation("PlayerNationality", fields: [nationalityRegionId], references: [id], onDelete: SetNull)
+  birthCountryRegion    Region?   @relation("PlayerBirthCountry", fields: [birthCountryRegionId], references: [id], onDelete: SetNull)
+  players               Player[]
+  userFavorites         UserFavorite[]
+  articles              Article[]
+
+  @@index([canonicalName, version])
+  @@index([nationalityRegionId, gender])
+  @@map("player_masters")
+}
+
+model Player {
+  id             String   @id @default(cuid())
+  masterPlayerId String   @map("master_player_id")
+  name           String   @db.VarChar(200)
+  sourceId       String   @map("source_id")
+  externalId     String?  @map("external_id") @db.VarChar(100)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  masterPlayer       PlayerMaster        @relation(fields: [masterPlayerId], references: [id], onDelete: Cascade)
+  gameParticipations GameParticipant[]
+  standings          Standing[]
+  source             DataSource          @relation(fields: [sourceId], references: [id])
+
+  @@unique([sourceId, externalId])
+  @@map("players")
+}
+
+// ============================================================================
+// 4. DATA & RESULTS MODELS
+// ============================================================================
+
+model GameResult {
+  id                 String     @id @default(cuid())
+  eventId            String     @map("event_id")
+  round              String?    @db.VarChar(50)
+  matchOrder         Int?       @map("match_order")
+  gameData           Json?      @map("game_data")
+  sourceId           String     @map("source_id")
+  confidence         Float      @default(1.0)
+  isValidated        Boolean    @default(false) @map("is_validated")
+  validatedAt        DateTime?  @map("validated_at")
+  validatedBy        String?    @map("validated_by")
+  conflictsWith      String[]   @map("conflicts_with")
+  conflictResolution String?    @map("conflict_resolution") @db.VarChar(200)
+  qualityScore       Float?     @map("quality_score")
+  dataFlags          String[]   @map("data_flags")
+  conflictScore      Float?     @map("conflict_score")
+  resolutionMethod   String?    @map("resolution_method") @db.VarChar(50)
+  resolutionReason   String?    @map("resolution_reason") @db.VarChar(200)
+  parentResultId     String?    @map("parent_result_id")
+  correctionOf       String?    @map("correction_of")
+  processingTime     Int?       @map("processing_time")
+  deletedAt          DateTime?  @map("deleted_at")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  source       DataSource        @relation(fields: [sourceId], references: [id])
+  participants GameParticipant[]
+
+  @@unique([eventId, sourceId])
+  @@map("game_results")
+}
+
+model GameParticipant {
+  id           String      @id @default(cuid())
+  gameResultId String      @map("game_result_id")
+  teamId       String?     @map("team_id")
+  playerId     String?     @map("player_id")
+  role         String?     @db.VarChar(50)
+  score        Int?
+  outcome      GameOutcome?
+  stats        Json?
+
+  // Relations
+  gameResult GameResult @relation(fields: [gameResultId], references: [id], onDelete: Cascade)
+  team       Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  player     Player?    @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([gameResultId, teamId, playerId])
+  @@map("game_participants")
+}
+
+model ConflictResolutionRule {
+  id             String   @id @default(cuid())
+  entityType     String   @map("entity_type") @db.VarChar(50)
+  conflictType   String   @map("conflict_type") @db.VarChar(50)
+  resolutionType String   @map("resolution_type") @db.VarChar(50)
+  sourceWeights  Json     @map("source_weights")
+  thresholds     Json
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([entityType, conflictType])
+  @@map("conflict_resolution_rules")
+}
+
+model Standing {
+  id             String   @id @default(cuid())
+  seasonId       String?  @map("season_id")
+  teamId         String?  @map("team_id")
+  playerId       String?  @map("player_id")
+  position       Int
+  points         Int      @default(0)
+  played         Int      @default(0)
+  wins           Int      @default(0)
+  draws          Int      @default(0)
+  losses         Int      @default(0)
+  goalsFor       Int      @default(0) @map("goals_for")
+  goalsAgainst   Int      @default(0) @map("goals_against")
+  goalDifference Int      @default(0) @map("goal_difference")
+  stats          Json?
+  group          String?  @db.VarChar(50)
+  sourceId       String   @map("source_id")
+  confidence     Float    @default(1.0)
+  verifiedAt     DateTime? @map("verified_at")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  season Season?    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  team   Team?      @relation(fields: [teamId], references: [id])
+  player Player?    @relation(fields: [playerId], references: [id])
+  source DataSource @relation(fields: [sourceId], references: [id])
+
+  @@unique([seasonId, teamId, playerId, group, sourceId])
+  @@map("standings")
+}
+
+// ============================================================================
+// 5. USER, AUTHENTICATION & PERSONALIZATION MODELS
+// ============================================================================
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique @db.VarChar(255)
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt     DateTime? @map("email_verified_at")
+  name                String?   @db.VarChar(200)
+  avatarUrl           String?   @map("avatar_url") @db.VarChar(500)
+  countryRegionId     String?   @map("country_region_id")
+  timezone            String    @default("UTC") @db.VarChar(50)
+  role                UserRole  @default(USER)
+  isActive            Boolean   @default(true) @map("is_active")
+  isSuspended         Boolean   @default(false) @map("is_suspended")
+  suspendedUntil      DateTime? @map("suspended_until")
+  lastLoginAt         DateTime? @map("last_login_at")
+  loginCount          Int       @default(0) @map("login_count")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lastFailedLogin     DateTime? @map("last_failed_login")
+  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  accounts          Account[]
+  countryRegion     Region?             @relation("UserCountry", fields: [countryRegionId], references: [id], onDelete: SetNull)
+  favorites         UserFavorite[]
+  activity          UserActivity[]
+  pushSubscriptions PushSubscription[]
+  offlineCache      OfflineCache[]
+  pwaInstallations  PwaInstallation[]
+  devicePreferences DevicePreference[]
+  backgroundSync    BackgroundSync[]
+  userPreferences   UserPreference?
+  auditLogs         AuditLog[]
+  videoAnalytics    VideoAnalytics[]
+  userRegions       UserRegion[]
+  websocketSessions WebSocketSession[]
+  notifications     Notification[]
+  authoredArticles  Article[]           @relation("AuthoredArticles")
+
+  @@index([isActive, createdAt])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  passwordHash      String? @map("password_hash")
+  refreshToken      String? @map("refresh_token") @db.Text
+  accessToken       String? @map("access_token") @db.Text
+  expiresAt         Int?    @map("expires_at")
+  tokenType         String? @map("token_type")
+  scope             String?
+  idToken           String? @map("id_token") @db.Text
+  sessionState      String? @map("session_state")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model WebSocketSession {
+  id               String   @id @default(cuid())
+  userId           String?  @map("user_id")
+  sessionId        String   @unique @map("session_id")
+  connectionId     String   @map("connection_id")
+  subscribedEvents String[] @map("subscribed_events")
+  isActive         Boolean  @default(true) @map("is_active")
+  lastPing         DateTime @default(now()) @map("last_ping")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isActive])
+  @@map("websocket_sessions")
+}
+
+model UserFavorite {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  leagueId       String?   @map("league_id")
+  teamMasterId   String?   @map("team_master_id")
+  playerMasterId String?   @map("player_master_id")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league       League?       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  teamMaster   TeamMaster?   @relation(fields: [teamMasterId], references: [id], onDelete: Cascade)
+  playerMaster PlayerMaster? @relation(fields: [playerMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leagueId, teamMasterId, playerMasterId])
+  @@map("user_favorites")
+}
+
+model UserPreference {
+  id                  String   @id @default(cuid())
+  userId              String   @unique @map("user_id")
+  sportsPriority      String[] @map("sports_priority")
+  autoRegionDetection Boolean  @default(true) @map("auto_region_detection")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model UserRegion {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  regionId             String   @map("region_id")
+  isPrimary            Boolean  @default(false) @map("is_primary")
+  priority             Int      @default(0)
+  preferences          Json?
+  notificationSettings Json?    @map("notification_settings")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, regionId])
+  @@map("user_regions")
+}
+
+model Notification {
+  id         String              @id @default(cuid())
+  userId     String              @map("user_id")
+  channel    NotificationChannel @default(IN_APP)
+  type       String              @map("type") @db.VarChar(50)
+  title      String              @db.VarChar(200)
+  body       String              @db.Text
+  entityType String?             @map("entity_type")
+  entityId   String?             @map("entity_id")
+  readAt     DateTime?           @map("read_at")
+  sentAt     DateTime            @default(now()) @map("sent_at")
+  deletedAt  DateTime?           @map("deleted_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id                String    @id @default(cuid())
+  userId            String?   @map("user_id")
+  endpoint          String    @unique @db.VarChar(500)
+  p256dh            String    @db.VarChar(200)
+  auth              String    @db.VarChar(200)
+  userAgent         String?   @map("user_agent")
+  leagueIds         String[]  @map("league_ids")
+  teamIds           String[]  @map("team_ids")
+  notificationTypes String[]  @map("notification_types")
+  isActive          Boolean   @default(true) @map("is_active")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  lastUsed          DateTime  @default(now()) @map("last_used")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("push_subscriptions")
+}
+
+model OfflineCache {
+  id          String     @id @default(cuid())
+  userId      String?    @map("user_id")
+  cacheKey    String     @db.VarChar(500)
+  entityType  String     @db.VarChar(50)
+  entityId    String     @db.VarChar(50)
+  data        Json
+  size        Int        @default(0)
+  priority    Int        @default(0)
+  hitCount    Int        @default(0) @map("hit_count")
+  lastHit     DateTime?  @map("last_hit")
+  syncStatus  SyncStatus @default(SYNCED) @map("sync_status")
+  lastSync    DateTime   @default(now()) @map("last_sync")
+  syncRetries Int        @default(0) @map("sync_retries")
+  expiresAt   DateTime   @map("expires_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cacheKey])
+  @@map("offline_cache")
+}
+
+model PwaInstallation {
+  id            String    @id @default(cuid())
+  userId        String?   @map("user_id")
+  sessionId     String    @map("session_id")
+  platform      String    @db.VarChar(50)
+  installPrompt Boolean   @default(false) @map("install_prompt_shown")
+  installed     Boolean   @default(false)
+  installedAt   DateTime? @map("installed_at")
+  uninstalledAt DateTime? @map("uninstalled_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("pwa_installations")
+}
+
+model DevicePreference {
+  id                String    @id @default(cuid())
+  userId            String?   @map("user_id")
+  deviceFingerprint String    @map("device_fingerprint") @db.VarChar(200)
+  theme             String    @default("auto") @db.VarChar(20)
+  homeShortcuts     String[]  @map("home_shortcuts")
+  notificationTime  String?   @map("notification_time") @db.VarChar(10)
+  compactMode       Boolean   @default(false) @map("compact_mode")
+  preferredSports   String[]  @map("preferred_sports")
+  lastActive        DateTime  @default(now()) @map("last_active")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceFingerprint])
+  @@map("device_preferences")
+}
+
+model BackgroundSync {
+  id          String     @id @default(cuid())
+  userId      String?    @map("user_id")
+  syncType    String     @db.VarChar(50)
+  payload     Json?
+  status      SyncStatus @default(PENDING)
+  attempts    Int        @default(0)
+  maxAttempts Int        @default(3) @map("max_attempts")
+  nextAttempt DateTime?  @map("next_attempt")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  completedAt DateTime?  @map("completed_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("background_sync")
+}
+
+// ============================================================================
+// 6. CONTENT & MEDIA MODELS
+// ============================================================================
+
+model Article {
+  id             String        @id @default(cuid())
+  title          String        @db.VarChar(255)
+  slug           String        @unique @db.VarChar(255)
+  subtitle       String?       @db.VarChar(500)
+  content        String        @db.Text
+  status         ContentStatus @default(DRAFT)
+  authorId       String        @map("author_id")
+  imageUrl       String?       @map("image_url") @db.VarChar(500)
+  isFeatured     Boolean       @default(false) @map("is_featured")
+  publishedAt    DateTime?     @map("published_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  
+  // Polymorphic relationship fields
+  sportId        String? @map("sport_id")
+  leagueId       String? @map("league_id")
+  eventId        String? @map("event_id")
+  teamMasterId   String? @map("team_master_id")
+  playerMasterId String? @map("player_master_id")
+
+  // Relations
+  author         User          @relation("AuthoredArticles", fields: [authorId], references: [id])
+  sport          Sport?        @relation(fields: [sportId], references: [id], onDelete: SetNull)
+  league         League?       @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  event          Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  teamMaster     TeamMaster?   @relation(fields: [teamMasterId], references: [id], onDelete: SetNull)
+  playerMaster   PlayerMaster? @relation(fields: [playerMasterId], references: [id], onDelete: SetNull)
+
+  @@index([authorId, status])
+  @@index([publishedAt, isFeatured])
+  @@map("articles")
+}
+
+model ContentAsset {
+  id        String    @id @default(cuid())
+  name      String    @db.VarChar(200)
+  type      AssetType
+  url       String    @db.VarChar(500)
+  alt       String?   @db.VarChar(200)
+  tags      String[]
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("content_assets")
+}
+
+model Video {
+  id              String    @id @default(cuid())
+  title           String    @db.VarChar(200)
+  description     String?
+  videoUrl        String    @map("video_url") @db.VarChar(500)
+  thumbnailUrl    String?   @map("thumbnail_url") @db.VarChar(500)
+  durationSeconds Int?      @map("duration_seconds")
+  videoType       VideoType @default(HIGHLIGHT) @map("video_type")
+  isFeatured      Boolean   @default(false) @map("is_featured")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Polymorphic relationship fields
+  leagueId String? @map("league_id")
+  seasonId String? @map("season_id")
+  eventId  String? @map("event_id")
+
+  // Relations
+  league League? @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  season Season? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  event  Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@map("videos")
+}
+
+
+// ============================================================================
+// 7. ANALYTICS & LOGGING MODELS
+// ============================================================================
+
+model UserActivity {
+  id             String    @id @default(cuid())
+  userId         String?   @map("user_id")
+  sessionId      String?   @map("session_id") @db.VarChar(100)
+  sportId        String?   @map("sport_id")
+  leagueId       String?   @map("league_id")
+  eventId        String?   @map("event_id")
+  action         String    @db.VarChar(50)
+  pagePath       String?   @map("page_path") @db.VarChar(500)
+  referrer       String?   @map("referrer") @db.VarChar(500)
+  userAgent      String?   @map("user_agent")
+  ipAddress      String?   @map("ip_address")
+  countryCode    String?   @map("country_code") @db.VarChar(3)
+  regionCode     String?   @map("region_code") @db.VarChar(10)
+  duration       Int?
+  isOffline      Boolean   @default(false) @map("is_offline")
+  connectionType String?   @map("connection_type")
+  installStatus  String?   @map("install_status")
+  deviceType     String?   @map("device_type") @db.VarChar(50)
+  screenSize     String?   @map("screen_size") @db.VarChar(20)
+  exitPath       String?   @map("exit_path") @db.VarChar(500)
+  bounceRate     Boolean   @default(false) @map("bounce_rate")
+  metadata       Json?
+  partitionDate  DateTime  @default(now()) @map("partition_date") @db.Date
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sport  Sport?  @relation(fields: [sportId], references: [id])
+  league League? @relation(fields: [leagueId], references: [id])
+  event  Event?  @relation(fields: [eventId], references: [id])
+
+  @@index([partitionDate, userId])
+  @@map("user_activity")
+}
+
+model VideoAnalytics {
+  id             String   @id @default(cuid())
+  videoId        String   @map("video_id")
+  videoType      String   @map("video_type") @db.VarChar(50)
+  userId         String?  @map("user_id")
+  sessionId      String?  @map("session_id")
+  watchDuration  Int      @map("watch_duration")
+  totalDuration  Int      @map("total_duration")
+  completionRate Float    @map("completion_rate")
+  deviceType     String?  @map("device_type") @db.VarChar(50)
+  quality        String?  @db.VarChar(20)
+  bufferEvents   Int      @default(0) @map("buffer_events")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([videoId, createdAt])
+  @@index([userId, createdAt])
+  @@map("video_analytics")
+}
+
+model DataQualityMetric {
+  id              String   @id @default(cuid())
+  sourceId        String   @map("source_id")
+  entityType      String   @map("entity_type") @db.VarChar(50)
+  entityId        String   @map("entity_id")
+  metricType      String   @map("metric_type") @db.VarChar(50)
+  metricValue     Float    @map("metric_value")
+  benchmarkValue  Float?   @map("benchmark_value")
+  deviation       Float?
+  measurementDate DateTime @map("measurement_date") @db.Date
+  details         Json?
+  alertThreshold  Float    @default(0.8) @map("alert_threshold")
+  isAlert         Boolean  @default(false) @map("is_alert")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  source DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, entityType, entityId, metricType, measurementDate])
+  @@map("data_quality_metrics")
+}
+
+model AuditLog {
+  id                String        @id @default(cuid())
+  userId            String?       @map("user_id")
+  sourceId          String?       @map("source_id")
+  entityType        String        @map("entity_type") @db.VarChar(50)
+  entityId          String        @map("entity_id")
+  action            AuditAction
+  oldValues         Json?         @map("old_values")
+  newValues         Json?         @map("new_values")
+  changedFields     String[]      @map("changed_fields")
+  reason            String?       @db.VarChar(500)
+  ipAddress         String?       @map("ip_address")
+  userAgent         String?       @map("user_agent")
+  sessionId         String?       @map("session_id")
+  requestId         String?       @map("request_id")
+  parentLogId       String?       @map("parent_log_id")
+  transactionId     String?       @map("transaction_id")
+  operationContext  Json?         @map("operation_context")
+  severity          AuditSeverity @default(INFO)
+  isSystemGenerated Boolean       @default(false) @map("is_system_generated")
+  processingTime    Int?          @map("processing_time")
+  checksum          String?       @db.VarChar(64)
+  partitionDate     DateTime      @default(now()) @map("partition_date") @db.Date
+  archiveAfter      DateTime      @map("archive_after")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  source    DataSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  parentLog AuditLog?   @relation("AuditLogHierarchy", fields: [parentLogId], references: [id])
+  childLogs AuditLog[]  @relation("AuditLogHierarchy")
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// 8. SYSTEM & DATA MANAGEMENT MODELS
+// ============================================================================
+
+model DataSource {
+  id                    String                 @id @default(cuid())
+  name                  String                 @unique @db.VarChar(100)
+  url                   String?                @db.VarChar(500)
+  apiKey                String?                @map("api_key") @db.VarChar(500)
+  isActive              Boolean                @default(true) @map("is_active")
+  priority              Int                    @default(0)
+  reliability           Float                  @default(0.8)
+  successRate           Float                  @default(1.0) @map("success_rate")
+  avgResponseTime       Int?                   @map("avg_response_time")
+  rateLimitPerHour      Int?                   @map("rate_limit_per_hour")
+  rateLimitPerDay       Int?                   @map("rate_limit_per_day")
+  maxConcurrentRequests Int                    @default(5) @map("max_concurrent_requests")
+  timeoutSeconds        Int                    @default(30) @map("timeout_seconds")
+  retryAttempts         Int                    @default(3) @map("retry_attempts")
+  backoffMultiplier     Float                  @default(2.0) @map("backoff_multiplier")
+  lastScrapedAt         DateTime?              @map("last_scraped_at")
+  nextScrapedAt         DateTime?              @map("next_scraped_at")
+  lastErrorAt           DateTime?              @map("last_error_at")
+  lastErrorMessage      String?                @map("last_error_message") @db.VarChar(500)
+  consecutiveErrors     Int                    @default(0) @map("consecutive_errors")
+  isQuarantined         Boolean                @default(false) @map("is_quarantined")
+  quarantineUntil       DateTime?              @map("quarantine_until")
+  deletedAt             DateTime?              @map("deleted_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+
+  // Relations
+  etlJobs               EtlJob[]
+  teams                 Team[]
+  players               Player[]
+  gameResults           GameResult[]
+  standings             Standing[]
+  auditLogs             AuditLog[]
+  qualityMetrics        DataQualityMetric[]
+  sourceEntityMappings  SourceEntityMapping[]
+
+  @@index([isActive, priority])
+  @@map("data_sources")
+}
+
+// Stores verified mappings between external source IDs and our canonical master IDs.
+model SourceEntityMapping {
+  id                String   @id @default(cuid())
+  sourceId          String   @map("source_id")
+  entityType        String   @map("entity_type") @db.VarChar(50) // "TeamMaster", "PlayerMaster", "League"
+  sourceEntityId    String   @map("source_entity_id") @db.VarChar(100)
+  canonicalMasterId String   @map("canonical_master_id")
+  confidence        Float    @default(1.0)
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  source DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  
+  @@unique([sourceId, entityType, sourceEntityId])
+  @@index([canonicalMasterId])
+  @@map("source_entity_mappings")
+}
+
+model EtlJob {
+  id               String    @id @default(cuid())
+  sourceId         String    @map("source_id")
+  jobType          String    @map("job_type") @db.VarChar(50)
+  entityType       String?   @map("entity_type") @db.VarChar(50)
+  entityId         String?   @map("entity_id")
+  status           EtlStatus @default(PENDING)
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  errorMessage     String?   @map("error_message")
+  recordsProcessed Int       @default(0) @map("records_processed")
+  recordsCreated   Int       @default(0) @map("records_created")
+  recordsUpdated   Int       @default(0) @map("records_updated")
+  recordsSkipped   Int       @default(0) @map("records_skipped")
+  dataQualityScore Float?    @map("data_quality_score")
+  metadata         Json?
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  source DataSource @relation(fields: [sourceId], references: [id])
+
+  @@index([sourceId, status])
+  @@map("etl_jobs")
+}
+
+model RegionalContent {
+  id          String   @id @default(cuid())
+  regionId    String   @map("region_id")
+  contentType String   @map("content_type") @db.VarChar(50)
+  contentId   String   @map("content_id")
+  priority    Int      @default(0)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([regionId, contentType, contentId])
+  @@map("regional_content")
+}
+
+model AuditTriggerConfig {
+  id                 String   @id @default(cuid())
+  tableName          String   @unique @map("table_name") @db.VarChar(100)
+  isEnabled          Boolean  @default(true) @map("is_enabled")
+  trackInsert        Boolean  @default(true) @map("track_insert")
+  trackUpdate        Boolean  @default(true) @map("track_update")
+  trackDelete        Boolean  @default(true) @map("track_delete")
+  excludedColumns    String[] @map("excluded_columns")
+  sensitiveColumns   String[] @map("sensitive_columns")
+  retentionDays      Int      @default(365) @map("retention_days")
+  compressionEnabled Boolean  @default(false) @map("compression_enabled")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("audit_trigger_config")
+}
+
+model DataArchivePolicy {
+  id               String   @id @default(cuid())
+  tableName        String   @map("table_name") @db.VarChar(100)
+  retentionDays    Int      @map("retention_days")
+  archiveAfterDays Int      @map("archive_after_days")
+  compressionType  String?  @map("compression_type") @db.VarChar(50)
+  isActive         Boolean  @default(true) @map("is_active")
+  lastRunAt        DateTime? @map("last_run_at")
+  nextRunAt        DateTime? @map("next_run_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([tableName])
+  @@map("data_archive_policies")
+}
+
+model CacheMetadata {
+  id         String   @id @default(cuid())
+  cacheKey   String   @unique @db.VarChar(500)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityIds  String[] @map("entity_ids")
+  ttlSeconds Int      @map("ttl_seconds")
+  tags       String[]
+  hitCount   Int      @default(0) @map("hit_count")
+  lastHit    DateTime @default(now()) @map("last_hit")
+  createdAt  DateTime @default(now()) @map("created_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@index([tags, expiresAt])
+  @@map("cache_metadata")
+}
+
+model SystemAlert {
+  id             String        @id @default(cuid())
+  type           String        @db.VarChar(100)
+  severity       AlertSeverity @default(MEDIUM)
+  title          String        @db.VarChar(200)
+  description    String?       @db.VarChar(1000)
+  entityType     String?       @map("entity_type") @db.VarChar(50)
+  entityId       String?       @map("entity_id")
+  isResolved     Boolean       @default(false) @map("is_resolved")
+  resolvedAt     DateTime?     @map("resolved_at")
+  resolvedBy     String?       @map("resolved_by")
+  acknowledgedAt DateTime?     @map("acknowledged_at")
+  acknowledgedBy String?       @map("acknowledged_by")
+  metadata       Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([type, severity, isResolved])
+  @@map("system_alerts")
+}
+
+model SystemConfig {
+  id              String   @id @default(cuid())
+  category        String   @map("category") @db.VarChar(50)
+  key             String   @map("key") @db.VarChar(100)
+  value           Json     @map("value")
+  dataType        String   @map("data_type") @db.VarChar(20)
+  description     String?  @map("description")
+  isSecret        Boolean  @default(false) @map("is_secret")
+  isReadOnly      Boolean  @default(false) @map("is_read_only")
+  validationRules Json?    @map("validation_rules")
+  updatedBy       String?  @map("updated_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([category, key])
+  @@map("system_config")
+}
+
+model SystemHealthMetric {
+  id          String   @id @default(cuid())
+  metricName  String   @map("metric_name") @db.VarChar(100)
+  metricValue Float    @map("metric_value")
+  threshold   Float?   @map("threshold")
+  unit        String?  @map("unit") @db.VarChar(20)
+  source      String   @map("source") @db.VarChar(50)
+  isHealthy   Boolean  @default(true) @map("is_healthy")
+  recordedAt  DateTime @default(now()) @map("recorded_at")
+
+  @@index([metricName, recordedAt])
+  @@map("system_health_metrics")
+}
+
+// ============================================================================
+// 9. ENUMERATIONS
+// ============================================================================
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AuditSeverity {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DataFreshness {
+  STATIC
+  LIVE
+  SCHEDULED
+}
+
+enum RegionType {
+  CONTINENT
+  COUNTRY
+  STATE
+  CITY
+}
+
+enum DisplayFormat {
+  SINGLE_LINE
+  DOUBLE_LINE
+}
+
+enum EventStatus {
+  SCHEDULED
+  PRE_MATCH
+  LIVE
+  HALFTIME
+  SECOND_HALF
+  EXTRA_TIME
+  PENALTY_SHOOTOUT
+  FINISHED
+  POSTPONED
+  CANCELLED
+  SUSPENDED
+  ABANDONED
+  WALKOVER
+  TECHNICAL_RESULT
+  UNDER_REVIEW
+  OTHER
+}
+
+enum TagCategory {
+  GENERAL
+  IMPORTANCE
+  PERFORMANCE
+  MILESTONE
+  CONTEXT
+  WEATHER
+  SPECIAL
+  MEDIA
+  CUSTOM
+}
+
+enum EventType {
+  STANDINGS
+  GAME
+  MIXED
+  TOURNAMENT
+  QUALIFICATION
+  PLAYOFF
+  FINAL
+  OTHER
+}
+
+enum EventContentType {
+  STANDINGS
+  GAMES
+  MIXED
+}
+
+enum GameOutcome {
+  WIN
+  LOSS
+  DRAW
+  FORFEIT
+  DISQUALIFIED
+  PENDING
+}
+
+enum VideoType {
+  HIGHLIGHT
+  FULL_MATCH
+  INTERVIEW
+  ANALYSIS
+  PREVIEW
+  RECAP
+  LIVE_STREAM
+  PRESS_CONF
+  TRAINING
+  DOCUMENTARY
+  OTHER
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESOLVE_CONFLICT
+  VALIDATE
+  MERGE
+  SPLIT
+  QUARANTINE
+  RESTORE
+  SOFT_DELETE
+  UNDELETE
+  ARCHIVE
+  ACTIVATE
+  DEACTIVATE
+  BULK_UPDATE
+  BULK_DELETE
+  IMPORT
+  EXPORT
+  SYNC
+  MIGRATION
+  CLEANUP
+  SYSTEM_UPDATE
+}
+
+enum AssetType {
+  BACKGROUND_IMAGE
+  LOGO
+  ICON
+  PHOTO
+}
+
+enum SyncStatus {
+  SYNCED
+  PENDING
+  FAILED
+  OUTDATED
+}
+
+enum EtlStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+  MIXED
+}
