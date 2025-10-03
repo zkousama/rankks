@@ -1,38 +1,26 @@
 import Sidebar from "@/components/sidebar";
-import SubNav from "@/components/sub-nav";
 
 interface ViewLayoutProps {
   children: React.ReactNode;
   params: Promise<{
     sportName: string;
     leagueId: string;
-    season: string;
-    contentType: string;
   }>;
 }
 
-export default async function ViewLayout({ children, params: paramsPromise }: ViewLayoutProps) {
+export default async function ViewLayout({
+  children,
+  params: paramsPromise,
+}: ViewLayoutProps) {
   const params = await paramsPromise;
-  const { sportName, leagueId, season } = params;
-
-  console.log('ViewLayout - Params:', { sportName, leagueId, season });
+  const { sportName, leagueId } = params;
 
   return (
-    <div className="flex h-full">
-      <Sidebar
-        sportName={sportName}
-        currentLeagueId={leagueId}
-      />
-      <div className="flex flex-1 flex-col">
-        <SubNav
-          sportName={sportName}
-          leagueId={leagueId}
-          season={season}
-        />
-        <div className="p-6 flex-1 overflow-y-auto">
-          {children}
-        </div>
-      </div>
+    // This flex container creates the main two-column layout
+    <div className="flex flex-1 overflow-hidden">
+      <Sidebar sportName={sportName} currentLeagueId={leagueId} />
+      {/* This main element is the scrollable content area */}
+      <main className="flex-1 flex flex-col overflow-y-auto">{children}</main>
     </div>
   );
 }

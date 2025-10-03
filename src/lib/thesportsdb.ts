@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 
 // --- Configuration ---
 const API_KEY = process.env.THESPORTSDB_API_KEY;
@@ -7,32 +8,44 @@ if (!API_KEY) {
     "THESPORTSDB_API_KEY is not set in the environment variables."
   );
 }
+// Correctly construct the base URL with your API key
 const API_BASE_URL = `https://www.thesportsdb.com/api/v1/json/${API_KEY}`;
 
-// --- Generic Fetcher ---
-async function fetchFromAPI<T>(endpoint: string): Promise<T | null> {
-  const url = `${API_BASE_URL}/${endpoint}`;
-  try {
-    const res = await fetch(url, { next: { revalidate: 3600 } }); // Cache for 1 hour
-    if (!res.ok) {
-      console.error(`API Error for ${url}: ${res.status} ${res.statusText}`);
+// --- Cached Generic Fetcher ---
+const fetchFromAPI = unstable_cache(
+  async <T>(endpoint: string): Promise<T | null> => {
+    // The endpoint is now just the method, e.g., "all_sports.php"
+    const url = `${API_BASE_URL}/${endpoint}`;
+    console.log(`Fetching: ${url}`); // This will now show your real key in the server log
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(
+          `API Error for ${url}: ${res.status} ${res.statusText}`,
+          errorText
+        );
+        return null;
+      }
+      const text = await res.text();
+      if (!text) return null;
+      // The API sometimes returns "" for no data, which is not valid JSON.
+      if (text === '""') return null;
+      return JSON.parse(text);
+    } catch (error) {
+      console.error(`Failed to fetch or parse from API: ${url}`, error);
       return null;
     }
-    const text = await res.text();
-    if (!text) return null; // Handle empty body
-    return JSON.parse(text);
-  } catch (error) {
-    console.error(`Failed to fetch or parse from API: ${url}`, error);
-    return null;
-  }
-}
+  },
+  ["thesportsdb-api-cache"],
+  { revalidate: 3600 }
+);
 
-// --- Type Definitions ---
+// --- Type Definitions (no changes here) ---
 export interface SportAPI {
   idSport: string;
   strSport: string;
 }
-
 export interface LeagueAPI {
   idLeague: string;
   strLeague: string;
@@ -41,7 +54,6 @@ export interface LeagueAPI {
   strFanart1?: string;
   strCountry?: string;
 }
-
 export interface StandingAPI {
   idStanding: string;
   intRank: string;
@@ -56,7 +68,6 @@ export interface StandingAPI {
   intGoalDifference: string;
   intPoints: string;
 }
-
 export interface SeasonAPI {
   strSeason: string;
 }
@@ -68,7 +79,6 @@ export async function getAllSports(): Promise<SportAPI[]> {
   return data?.sports || [];
 }
 
-// Fetches ALL leagues. More reliable than fetching by sport.
 export async function getAllLeagues(): Promise<LeagueAPI[]> {
   const data = await fetchFromAPI<{ leagues: LeagueAPI[] }>("all_leagues.php");
   return data?.leagues || [];

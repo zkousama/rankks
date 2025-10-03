@@ -1,5 +1,5 @@
-// src/components/standings-table.tsx
 import { StandingAPI } from "@/lib/thesportsdb";
+import { ChevronDown } from "lucide-react";
 import Image from "next/image";
 
 function initials(name?: string) {
@@ -11,71 +11,114 @@ function initials(name?: string) {
     .toUpperCase();
 }
 
-export default function StandingsTable({ standingsAPI }: { standingsAPI: StandingAPI[] }) {
-  if (!standingsAPI || standingsAPI.length === 0) {
-    return <p className="text-center text-muted-foreground py-8">No standings data available for this season.</p>;
-  }
-  return (
-    <div className="border-0 rounded-none overflow-hidden bg-transparent"> {/* No border/round for PRD */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm table-fixed">
-          <thead className="bg-muted/50"> {/* Lighter header */}
-            <tr className="[&_th]:px-3 [&_th]:py-2 [&_th]:font-medium [&_th]:text-left text-muted-foreground">
-              <th className="w-8 text-center">#</th>
-              <th className="w-1/3">club</th>
-              <th className="text-center w-10">p</th>
-              <th className="text-center w-10">w</th>
-              <th className="text-center w-10">d</th>
-              <th className="text-center w-10">l</th>
-              <th className="text-center w-10">gf</th>
-              <th className="text-center w-10">ga</th>
-              <th className="text-center w-10">gd</th>
-              <th className="text-center w-12">pts</th>
-              <th className="text-center w-16">more</th> {/* Added "More" column per PRD */}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {standingsAPI.map((standing) => {
-              const isTop = standing.intRank === "1";
-              return (
-                <tr
-                  key={standing.idStanding}
-                  className={`[&_td]:px-3 [&_td]:py-2 hover:bg-muted/20 ${isTop ? "font-bold" : ""}`}
-                >
-                  <td className="text-center text-muted-foreground">{standing.intRank}</td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      {standing.strTeamBadge ? (
-                        <Image
-                          src={standing.strTeamBadge}
-                          alt={standing.strTeam}
-                          width={24}
-                          height={24}
-                          className="rounded-none"
-                        />
-                      ) : (
-                        <div className="w-6 h-6 bg-muted flex items-center justify-center text-xs font-medium">
-                          {initials(standing.strTeam)}
-                        </div>
-                      )}
-                      <span className="truncate">{standing.strTeam}</span>
-                    </div>
-                  </td>
-                  <td className="text-center">{standing.intPlayed}</td>
-                  <td className="text-center">{standing.intWin}</td>
-                  <td className="text-center">{standing.intDraw}</td>
-                  <td className="text-center">{standing.intLoss}</td>
-                  <td className="text-center">{standing.intGoalsFor}</td>
-                  <td className="text-center">{standing.intGoalsAgainst}</td>
-                  <td className="text-center">{standing.intGoalDifference}</td>
-                  <td className="text-center font-bold">{standing.intPoints}</td>
-                  <td className="text-center text-accent cursor-pointer">v</td> {/* More dropdown placeholder */}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+export default function StandingsTable({
+  standings,
+}: {
+  standings: StandingAPI[];
+}) {
+  if (!standings || standings.length === 0) {
+    return (
+      <div className="py-10 text-center text-muted-foreground">
+        Standings are not available for this competition or season.
       </div>
+    );
+  }
+
+  const tableHeaders = [
+    "#",
+    "Club",
+    "P",
+    "W",
+    "D",
+    "L",
+    "GF",
+    "GA",
+    "GD",
+    "Pts",
+    "More",
+  ];
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/30">
+          <tr className="text-left text-muted-foreground font-medium">
+            {tableHeaders.map((header, i) => (
+              <th
+                key={header}
+                className={`px-3 py-2 uppercase text-xs tracking-wider ${
+                  i === 0 || i > 1 ? "text-center" : "text-left"
+                } ${i === 1 ? "w-1/3" : "w-12"}`}
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {standings.map((standing, index) => {
+            const badgeUrl = standing.strTeamBadge
+              ? standing.strTeamBadge.replace("/preview", "")
+              : null;
+
+            return (
+              <tr
+                key={standing.idStanding}
+                className="border-b border-border last:border-b-0 hover:bg-muted/30"
+              >
+                <td className="text-center font-medium px-3 py-2 text-muted-foreground">
+                  {standing.intRank}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    {badgeUrl ? (
+                      <Image
+                        src={badgeUrl}
+                        alt={standing.strTeam}
+                        width={24}
+                        height={24}
+                        unoptimized // Helpful for some external image providers
+                      />
+                    ) : (
+                      <div className="w-6 h-6 bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
+                        {initials(standing.strTeam)}
+                      </div>
+                    )}
+                    <span
+                      className={`font-semibold ${
+                        index === 0 ? "text-primary" : ""
+                      }`}
+                    >
+                      {standing.strTeam}
+                    </span>
+                  </div>
+                </td>
+                <td className="text-center px-3 py-2">{standing.intPlayed}</td>
+                <td className="text-center px-3 py-2">{standing.intWin}</td>
+                <td className="text-center px-3 py-2">{standing.intDraw}</td>
+                <td className="text-center px-3 py-2">{standing.intLoss}</td>
+                <td className="text-center px-3 py-2">
+                  {standing.intGoalsFor}
+                </td>
+                <td className="text-center px-3 py-2">
+                  {standing.intGoalsAgainst}
+                </td>
+                <td className="text-center px-3 py-2">
+                  {standing.intGoalDifference}
+                </td>
+                <td className="text-center font-bold px-3 py-2">
+                  {standing.intPoints}
+                </td>
+                <td className="text-center px-3 py-2">
+                  <button className="text-muted-foreground hover:text-accent">
+                    <ChevronDown size={16} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

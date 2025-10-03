@@ -1,34 +1,38 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-export default function ContentNav({ basePath }: { basePath: string }) {
-  const pathname = usePathname();
+interface ContentNavProps {
+  basePath: string;
+  currentContentType: string;
+}
 
-  // Define the available content types
+export default function ContentNav({
+  basePath,
+  currentContentType,
+}: ContentNavProps) {
   const navItems = [
-    { name: 'Standings', href: `${basePath}/standings` },
-    { name: 'Scorers', href: `${basePath}/scorers` },
-    { name: 'Passers', href: `${basePath}/passers` },
-    { name: 'Players', href: `${basePath}/players` },
+    { name: "Standings", slug: "standings" },
+    { name: "Scorers", slug: "scorers" },
+    { name: "Passers", slug: "passers" },
+    { name: "Players", slug: "players" },
   ];
 
   return (
-    <nav className="flex items-center gap-4 border-b mb-6">
+    <nav className="flex items-center gap-4 border-b border-border bg-card px-4">
       {navItems.map((item) => (
         <Link
           key={item.name}
-          href={item.href}
+          href={`${basePath}/${item.slug}`}
           className={cn(
-            'py-2 px-1 border-b-2 text-sm font-semibold transition-colors',
-            pathname === item.href
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
+            "py-3 border-b-2 text-sm font-semibold transition-colors",
+            currentContentType === item.slug
+              ? "border-accent text-accent"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
           )}
         >
-          {item.name}
+          {item.name.toUpperCase()}
         </Link>
       ))}
     </nav>
