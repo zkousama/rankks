@@ -1,4 +1,5 @@
 import StandingsTable from "@/components/standings-table";
+import Sidebar from "@/components/sidebar";
 import {
   getLeagueDetails,
   getStandings,
@@ -72,11 +73,16 @@ export default async function LeaguePage({
     ? await getTeamHistoricalStats(leagueId, allSeasons, winner.strTeam)
     : { participations: 0, titles: 0 };
 
+  // Prepare country info for ContentNav
+  const countryName = leagueDetails?.strCountry || '';
+  let countryCode = countryName.slice(0, 2).toLowerCase();
+  if (countryName === "England") countryCode = "gb-eng";
+  if (countryName === "United Kingdom") countryCode = "gb";
+
   const renderContent = () => {
     switch (contentType) {
       case "standings":
         return <StandingsTable standings={currentStandings ?? []} />;
-      // Other cases remain the same
       case "scorers":
         return (
           <div className="py-10 text-center text-muted-foreground">
@@ -105,26 +111,44 @@ export default async function LeaguePage({
   };
 
   return (
-    // The components are now rendered inside the main scrollable area
-    <div className="p-6">
-      {/* Component order now matches the PRD */}
+    <>
+      {/* Year selector navigation - spans full width above sidebar and content */}
       <SubNav sportName={sportName} leagueId={leagueId} season={season} />
-      <ContentNav
-        basePath={`/view/${sportName}/${leagueId}/${season}`}
-        currentContentType={contentType}
-      />
-      <ContentHeader
-        league={leagueDetails}
-        season={season}
-        winner={winner}
-        participations={stats.participations}
-        titles={stats.titles}
-      />
+      
+      {/* Sidebar + Content Area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar on the left */}
+        <Sidebar sportName={sportName} currentLeagueId={leagueId} />
+        
+        {/* Main content area on the right */}
+        <main className="flex flex-col flex-1 overflow-hidden">
+          {/* Content tabs with region/flag */}
+          <ContentNav
+            basePath={`/view/${sportName}/${leagueId}/${season}`}
+            currentContentType={contentType}
+            countryName={countryName}
+            countryCode={countryCode}
+          />
+          
+          {/* Scrollable content area */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              <ContentHeader
+                league={leagueDetails}
+                season={season}
+                winner={winner}
+                participations={stats.participations}
+                titles={stats.titles}
+              />
 
-      {/* The main content body */}
-      <div className="bg-card shadow-sm">{renderContent()}</div>
+              {/* Main content body */}
+              <div className="bg-card shadow-sm">{renderContent()}</div>
 
-      <HighlightsSection highlights={highlights ?? []} />
-    </div>
+              <HighlightsSection highlights={highlights ?? []} />
+            </div>
+          </div>
+        </main>
+      </div>
+    </>
   );
 }

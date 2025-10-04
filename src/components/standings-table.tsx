@@ -57,9 +57,13 @@ export default function StandingsTable({
         </thead>
         <tbody>
           {standings.map((standing, index) => {
-            const badgeUrl = standing.strTeamBadge
-              ? standing.strTeamBadge.replace("/preview", "")
-              : null;
+            // Clean up the badge URL - remove /preview and /tiny if present
+            let badgeUrl = standing.strTeamBadge;
+            if (badgeUrl) {
+              badgeUrl = badgeUrl
+                .replace("/preview", "")
+                .replace("/tiny", "");
+            }
 
             return (
               <tr
@@ -74,13 +78,19 @@ export default function StandingsTable({
                     {badgeUrl ? (
                       <Image
                         src={badgeUrl}
-                        alt={standing.strTeam}
+                        alt={`${standing.strTeam} badge`}
                         width={24}
                         height={24}
-                        unoptimized // Helpful for some external image providers
+                        className="object-contain"
+                        unoptimized
+                        onError={(e) => {
+                          // If image fails to load, hide it
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
                       />
                     ) : (
-                      <div className="w-6 h-6 bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
+                      <div className="w-6 h-6 bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground rounded-sm">
                         {initials(standing.strTeam)}
                       </div>
                     )}

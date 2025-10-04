@@ -18,6 +18,8 @@ rankks
 ├─ README.md
 ├─ src
 │  ├─ app
+│  │  ├─ api
+│  │  │  └─ team
 │  │  ├─ favicon.ico
 │  │  ├─ globals.css
 │  │  ├─ layout.tsx
@@ -32,8 +34,10 @@ rankks
 │  │                 ├─ loading.tsx
 │  │                 └─ page.tsx
 │  ├─ components
+│  │  ├─ content-header.tsx
 │  │  ├─ content-nav.tsx
 │  │  ├─ date-selector.tsx
+│  │  ├─ highlights-section.tsx
 │  │  ├─ main-nav.tsx
 │  │  ├─ shortcut-nav.tsx
 │  │  ├─ sidebar.tsx
@@ -41,6 +45,7 @@ rankks
 │  │  ├─ sub-nav.tsx
 │  │  └─ year-selector.tsx
 │  └─ lib
+│     ├─ highlightly.ts
 │     ├─ prisma.ts
 │     ├─ thesportsdb.ts
 │     └─ utils.ts
