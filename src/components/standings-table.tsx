@@ -1,6 +1,6 @@
 import { StandingAPI } from "@/lib/thesportsdb";
 import { ChevronDown } from "lucide-react";
-import Image from "next/image";
+import TeamBadgeImage from "./team-badge-image";
 
 function initials(name?: string) {
   if (!name) return "";
@@ -57,13 +57,10 @@ export default function StandingsTable({
         </thead>
         <tbody>
           {standings.map((standing, index) => {
-            // Clean up the badge URL - remove /preview and /tiny if present
-            let badgeUrl = standing.strTeamBadge;
-            if (badgeUrl) {
-              badgeUrl = badgeUrl
-                .replace("/preview", "")
-                .replace("/tiny", "");
-            }
+            // --- THIS IS THE FIX ---
+            // Simply use the badge URL provided by the API directly.
+            // No more manipulation is needed.
+            const badgeUrl = standing.strTeamBadge;
 
             return (
               <tr
@@ -75,25 +72,11 @@ export default function StandingsTable({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-3">
-                    {badgeUrl ? (
-                      <Image
-                        src={badgeUrl}
-                        alt={`${standing.strTeam} badge`}
-                        width={24}
-                        height={24}
-                        className="object-contain"
-                        unoptimized
-                        onError={(e) => {
-                          // If image fails to load, hide it
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-6 h-6 bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground rounded-sm">
-                        {initials(standing.strTeam)}
-                      </div>
-                    )}
+                    <TeamBadgeImage
+                      src={badgeUrl} // Pass the correct, direct URL
+                      alt={`${standing.strTeam} badge`}
+                      initials={initials(standing.strTeam)}
+                    />
                     <span
                       className={`font-semibold ${
                         index === 0 ? "text-primary" : ""

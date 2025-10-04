@@ -5,11 +5,11 @@ import {
   getStandings,
   getSeasonsByLeagueId,
   SeasonAPI,
+  getTeamsByLeagueId,
+  StandingAPI,
 } from "@/lib/thesportsdb";
-import { getHighlights } from "@/lib/highlightly";
 import ContentNav from "@/components/content-nav";
 import ContentHeader from "@/components/content-header";
-import HighlightsSection from "@/components/highlights-section";
 import SubNav from "@/components/sub-nav";
 
 interface LeaguePageProps {
@@ -24,7 +24,7 @@ interface LeaguePageProps {
 async function getTeamHistoricalStats(
   leagueId: string,
   seasons: SeasonAPI[],
-  teamName: string
+  teamName:string
 ) {
   if (!teamName || seasons.length === 0)
     return { participations: 0, titles: 0 };
@@ -52,13 +52,39 @@ export default async function LeaguePage({
   const params = await paramsPromise;
   const { sportName, leagueId, season, contentType } = params;
 
-  const [leagueDetails, currentStandings, allSeasons, highlights] =
-    await Promise.all([
-      getLeagueDetails(leagueId),
-      getStandings(leagueId, season),
-      getSeasonsByLeagueId(leagueId),
-      getHighlights(sportName, leagueId, season),
-    ]);
+  const [
+    leagueDetails,
+    currentStandings,
+    allSeasons,
+    allTeamsInLeague,
+  ] = await Promise.all([
+    getLeagueDetails(leagueId),
+    getStandings(leagueId, season),
+    getSeasonsByLeagueId(leagueId),
+    getTeamsByLeagueId(leagueId),
+  ]);
+
+  let enrichedStandings: StandingAPI[] | null = currentStandings; // Explicitly type the variable
+
+  if (currentStandings && allTeamsInLeague) {
+    const teamBadgeMap = new Map<string, string>();
+    allTeamsInLeague.forEach(team => {
+      if (team.idTeam && team.strTeamBadge) {
+        teamBadgeMap.set(team.idTeam, team.strTeamBadge);
+      }
+    });
+
+    // The key is ensuring the return type of this map is always a full StandingAPI object
+    enrichedStandings = currentStandings.map((standing): StandingAPI => { // Explicitly type the return of the map function
+      const badgeUrl = teamBadgeMap.get(standing.idTeam);
+      if (badgeUrl) {
+        // Use spread syntax to copy all original properties
+        return { ...standing, strTeamBadge: badgeUrl };
+      }
+      // If no badge is found, return the original, unmodified object
+      return standing;
+    });
+  }
 
   if (!leagueDetails) {
     return (
@@ -68,12 +94,11 @@ export default async function LeaguePage({
     );
   }
 
-  const winner = currentStandings?.find((s) => s.intRank === "1");
+  const winner = enrichedStandings?.find((s) => s.intRank === "1");
   const stats = winner
     ? await getTeamHistoricalStats(leagueId, allSeasons, winner.strTeam)
     : { participations: 0, titles: 0 };
 
-  // Prepare country info for ContentNav
   const countryName = leagueDetails?.strCountry || '';
   let countryCode = countryName.slice(0, 2).toLowerCase();
   if (countryName === "England") countryCode = "gb-eng";
@@ -82,7 +107,7 @@ export default async function LeaguePage({
   const renderContent = () => {
     switch (contentType) {
       case "standings":
-        return <StandingsTable standings={currentStandings ?? []} />;
+        return <StandingsTable standings={enrichedStandings ?? []} />;
       case "scorers":
         return (
           <div className="py-10 text-center text-muted-foreground">
@@ -112,25 +137,16 @@ export default async function LeaguePage({
 
   return (
     <>
-      {/* Year selector navigation - spans full width above sidebar and content */}
       <SubNav sportName={sportName} leagueId={leagueId} season={season} />
-      
-      {/* Sidebar + Content Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar on the left */}
         <Sidebar sportName={sportName} currentLeagueId={leagueId} />
-        
-        {/* Main content area on the right */}
         <main className="flex flex-col flex-1 overflow-hidden">
-          {/* Content tabs with region/flag */}
           <ContentNav
             basePath={`/view/${sportName}/${leagueId}/${season}`}
             currentContentType={contentType}
             countryName={countryName}
             countryCode={countryCode}
           />
-          
-          {/* Scrollable content area */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-6">
               <ContentHeader
@@ -140,11 +156,7 @@ export default async function LeaguePage({
                 participations={stats.participations}
                 titles={stats.titles}
               />
-
-              {/* Main content body */}
               <div className="bg-card shadow-sm">{renderContent()}</div>
-
-              <HighlightsSection highlights={highlights ?? []} />
             </div>
           </div>
         </main>

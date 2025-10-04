@@ -14,9 +14,8 @@ const API_BASE_URL = `https://www.thesportsdb.com/api/v1/json/${API_KEY}`;
 // --- Cached Generic Fetcher ---
 const fetchFromAPI = unstable_cache(
   async <T>(endpoint: string): Promise<T | null> => {
-    // The endpoint is now just the method, e.g., "all_sports.php"
     const url = `${API_BASE_URL}/${endpoint}`;
-    console.log(`Fetching: ${url}`); // This will now show your real key in the server log
+    console.log(`Fetching: ${url}`);
     try {
       const res = await fetch(url);
       if (!res.ok) {
@@ -28,9 +27,7 @@ const fetchFromAPI = unstable_cache(
         return null;
       }
       const text = await res.text();
-      if (!text) return null;
-      // The API sometimes returns "" for no data, which is not valid JSON.
-      if (text === '""') return null;
+      if (!text || text === '""') return null;
       return JSON.parse(text);
     } catch (error) {
       console.error(`Failed to fetch or parse from API: ${url}`, error);
@@ -41,7 +38,6 @@ const fetchFromAPI = unstable_cache(
   { revalidate: 3600 }
 );
 
-// --- Type Definitions (no changes here) ---
 export interface SportAPI {
   idSport: string;
   strSport: string;
@@ -54,11 +50,14 @@ export interface LeagueAPI {
   strFanart1?: string;
   strCountry?: string;
 }
+
 export interface StandingAPI {
   idStanding: string;
   intRank: string;
+  idTeam: string;
   strTeam: string;
-  strTeamBadge: string;
+  strBadge?: string; // The actual property name from the API, now correctly typed.
+  strTeamBadge?: string; // The consistent property name our app will use.
   intPlayed: string;
   intWin: string;
   intDraw: string;
@@ -68,11 +67,15 @@ export interface StandingAPI {
   intGoalDifference: string;
   intPoints: string;
 }
+
 export interface SeasonAPI {
   strSeason: string;
 }
-
-// --- API Service Functions ---
+export interface TeamAPI {
+  idTeam: string;
+  strTeam: string;
+  strTeamBadge: string;
+}
 
 export async function getAllSports(): Promise<SportAPI[]> {
   const data = await fetchFromAPI<{ sports: SportAPI[] }>("all_sports.php");
@@ -100,7 +103,16 @@ export async function getStandings(
   const data = await fetchFromAPI<{ table: StandingAPI[] }>(
     `lookuptable.php?l=${leagueId}&s=${season}`
   );
-  return data?.table || null;
+
+  if (!data?.table) return null;
+
+  // Normalize the API's inconsistent property names right here.
+  // This ensures the rest of the app gets clean, predictable data.
+  return data.table.map((standing) => ({
+    ...standing,
+    // Create a consistent `strTeamBadge` property from the API's `strBadge`.
+    strTeamBadge: standing.strBadge || standing.strTeamBadge,
+  }));
 }
 
 export async function getSeasonsByLeagueId(
@@ -111,4 +123,20 @@ export async function getSeasonsByLeagueId(
   );
   const seasons = data?.seasons || [];
   return seasons.sort((a, b) => b.strSeason.localeCompare(a.strSeason));
+}
+
+export async function getTeamDetails(teamId: string): Promise<TeamAPI | null> {
+  const data = await fetchFromAPI<{ teams: TeamAPI[] }>(
+    `lookupteam.php?id=${teamId}`
+  );
+  return data?.teams?.[0] || null;
+}
+
+export async function getTeamsByLeagueId(
+  leagueId: string
+): Promise<TeamAPI[] | null> {
+  const data = await fetchFromAPI<{ teams: TeamAPI[] }>(
+    `lookup_all_teams.php?id=${leagueId}`
+  );
+  return data?.teams || null;
 }
