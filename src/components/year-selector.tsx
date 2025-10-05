@@ -17,17 +17,25 @@ export default function YearSelector({ basePath, currentSeason }: YearSelectorPr
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftChevron, setShowLeftChevron] = useState(false);
   const [showRightChevron, setShowRightChevron] = useState(false);
-  
-  // Generate a more complete list of seasons
   const [allSeasons, setAllSeasons] = useState<string[]>([]);
 
   useEffect(() => {
-    // Since API only returns 5 seasons, generate seasons from 1992 to current year
-    const currentYear = new Date().getFullYear();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+    
+    // Determine the latest possible season based on current date
+    // For soccer seasons (YYYY-YYYY format), if we're past August, current season is active
+    // Otherwise, previous season is the latest
+    let latestYear = currentYear;
+    if (currentMonth < 7) { // Before August
+      latestYear = currentYear - 1;
+    }
+    
     const generatedSeasons: string[] = [];
     
-    // Generate seasons in reverse order (newest first)
-    for (let year = currentYear; year >= 1992; year--) {
+    // Generate seasons from latestYear down to 1992
+    for (let year = latestYear; year >= 1992; year--) {
       generatedSeasons.push(`${year}-${year + 1}`);
     }
     
@@ -59,14 +67,31 @@ export default function YearSelector({ basePath, currentSeason }: YearSelectorPr
     const currentYearNum = parseInt(currentSeason.split('-')[0]);
     const newYear = currentYearNum + offset;
     const newSeason = `${newYear}-${newYear + 1}`;
-    router.push(`${basePath}/${newSeason}/standings`);
+    
+    // Check if the new season exists in our generated list
+    if (allSeasons.includes(newSeason)) {
+      router.push(`${basePath}/${newSeason}/standings`);
+    }
+  };
+
+  const canNavigatePrevious = () => {
+    const currentYearNum = parseInt(currentSeason.split('-')[0]);
+    const nextYear = currentYearNum + 1;
+    const nextSeason = `${nextYear}-${nextYear + 1}`;
+    return allSeasons.includes(nextSeason);
+  };
+
+  const canNavigateNext = () => {
+    const currentYearNum = parseInt(currentSeason.split('-')[0]);
+    const prevYear = currentYearNum - 1;
+    const prevSeason = `${prevYear}-${prevYear + 1}`;
+    return allSeasons.includes(prevSeason);
   };
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    // Scroll active season into view on mount
     if (currentSeason) {
       const activeEl = document.getElementById(`season-${currentSeason}`);
       if (activeEl) {
@@ -74,7 +99,6 @@ export default function YearSelector({ basePath, currentSeason }: YearSelectorPr
       }
     }
 
-    // Check scroll position initially and on scroll
     checkScroll();
     container.addEventListener('scroll', checkScroll);
     window.addEventListener('resize', checkScroll);
@@ -97,10 +121,16 @@ export default function YearSelector({ basePath, currentSeason }: YearSelectorPr
 
   return (
     <div className="relative h-12 bg-card border-b border-border flex items-center">
-      {/* Left Navigation Arrow */}
+      {/* Left Navigation Arrow - goes to NEWER season (previous in timeline) */}
       <button
         onClick={() => navigateYear(1)}
-        className="h-full px-3 border-r border-border hover:bg-muted transition-colors"
+        disabled={!canNavigatePrevious()}
+        className={cn(
+          "h-full px-3 border-r border-border transition-colors",
+          canNavigatePrevious() 
+            ? "hover:bg-muted cursor-pointer" 
+            : "opacity-30 cursor-not-allowed"
+        )}
         aria-label="Previous season"
         title="Previous season"
       >
@@ -118,7 +148,7 @@ export default function YearSelector({ basePath, currentSeason }: YearSelectorPr
         </button>
       )}
 
-      {/* Years Container - displays ALL generated seasons */}
+      {/* Years Container */}
       <div
         ref={scrollContainerRef}
         className="flex items-center gap-2 overflow-x-auto px-4 py-1 no-scrollbar flex-1"
@@ -156,10 +186,16 @@ export default function YearSelector({ basePath, currentSeason }: YearSelectorPr
         </button>
       )}
 
-      {/* Right Navigation Arrow */}
+      {/* Right Navigation Arrow - goes to OLDER season (next in timeline) */}
       <button
         onClick={() => navigateYear(-1)}
-        className="h-full px-3 border-l border-border hover:bg-muted transition-colors"
+        disabled={!canNavigateNext()}
+        className={cn(
+          "h-full px-3 border-l border-border transition-colors",
+          canNavigateNext() 
+            ? "hover:bg-muted cursor-pointer" 
+            : "opacity-30 cursor-not-allowed"
+        )}
         aria-label="Next season"
         title="Next season"
       >

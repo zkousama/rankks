@@ -18,8 +18,6 @@ rankks
 ├─ README.md
 ├─ src
 │  ├─ app
-│  │  ├─ api
-│  │  │  └─ team
 │  │  ├─ favicon.ico
 │  │  ├─ globals.css
 │  │  ├─ layout.tsx
@@ -34,6 +32,7 @@ rankks
 │  │                 ├─ loading.tsx
 │  │                 └─ page.tsx
 │  ├─ components
+│  │  ├─ breadcrumb-nav.tsx
 │  │  ├─ content-header.tsx
 │  │  ├─ content-nav.tsx
 │  │  ├─ date-selector.tsx
