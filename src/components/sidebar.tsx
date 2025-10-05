@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { getAllLeagues, LeagueAPI } from "@/lib/thesportsdb";
 
@@ -6,6 +7,30 @@ const POPULAR_LEAGUE_IDS: { [key: string]: string[] } = {
   Soccer: ["4328", "4480", "4335", "4332", "4331", "4346", "4334"],
   Basketball: ["4387", "4463"],
   Tennis: ["4385", "4449"],
+};
+
+// Badge URLs for popular leagues (fetched from lookupleague endpoint)
+const LEAGUE_BADGES: { [key: string]: string } = {
+  "4328":
+    "https://r2.thesportsdb.com/images/media/league/badge/gasy9d1737743125.png", // Premier League
+  "4480":
+    "https://r2.thesportsdb.com/images/media/league/badge/facv1u1742998896.png", // Champions League
+  "4335":
+    "https://r2.thesportsdb.com/images/media/league/badge/ja4it51687628717.png", // La Liga
+  "4332":
+    "https://r2.thesportsdb.com/images/media/league/badge/67q3q21679951383.png", // Serie A
+  "4331":
+    "https://r2.thesportsdb.com/images/media/league/badge/teqh1b1679952008.png", // Bundesliga
+  "4334":
+    "https://r2.thesportsdb.com/images/media/league/badge/9f7z9d1742983155.png", // Ligue 1
+  "4387":
+    "https://r2.thesportsdb.com/images/media/league/badge/frdjqy1536585083.png", // NBA
+  "4463":
+    "https://r2.thesportsdb.com/images/media/league/badge/w8bial1517660134.png", // EuroLeague
+  "4385":
+    "https://r2.thesportsdb.com/images/media/league/badge/x16ihc1546113079.png", // ATP Tour
+  "4449":
+    "https://r2.thesportsdb.com/images/media/league/badge/nuegdl1519037397.png", // WTA Tour
 };
 
 export default async function Sidebar({
@@ -33,26 +58,61 @@ export default async function Sidebar({
   const displayName = sportName === "Soccer" ? "Football" : sportName;
 
   return (
-    <aside className="w-56 bg-sidebar text-sidebar-foreground p-4 flex flex-col shrink-0 border-r border-border">
-      <h2 className="text-lg font-bold mb-4 text-sidebar-foreground">
-        {displayName}
-      </h2>
-      <nav>
+    <aside className="w-56 bg-white flex flex-col shrink-0 border-r border-border">
+      <div
+        className="px-4 flex items-center"
+        style={{ backgroundColor: "#8a74a1", height: "57px" }}
+      >
+        <h2 className="text-sm font-bold text-white uppercase tracking-wide">
+          {displayName}
+        </h2>
+      </div>
+      <nav className="p-4">
         <ul className="flex flex-col gap-1">
           {popularLeagues.map((league: LeagueAPI) => {
             const defaultSeason = sportName === "Soccer" ? "2023-2024" : "2024";
+            const isActive = currentLeagueId === league.idLeague;
+
             return (
               <li key={league.idLeague}>
                 <Link
                   href={`/view/${sportName}/${league.idLeague}/${defaultSeason}/standings`}
                   className={cn(
-                    "block p-2 text-sm font-medium transition-colors hover:bg-black/5",
-                    currentLeagueId === league.idLeague
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-bold"
-                      : ""
+                    "px-3 py-2 text-sm font-medium transition-colors relative flex items-center gap-2",
+                    isActive
+                      ? "text-white font-bold"
+                      : "text-[#2E2E2E] hover:bg-[#F5F5F5]"
                   )}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: "#ED4E9D",
+                          clipPath:
+                            "polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%)",
+                        }
+                      : undefined
+                  }
                 >
-                  {league.strLeague}
+                  {LEAGUE_BADGES[league.idLeague] ? (
+                    <Image
+                      src={LEAGUE_BADGES[league.idLeague]}
+                      alt={`${league.strLeague} badge`}
+                      width={20}
+                      height={20}
+                      className="object-contain shrink-0"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="w-5 h-5 shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {league.strLeague
+                      .replace(/^English\s+/i, "")
+                      .replace(/^Spanish\s+/i, "")
+                      .replace(/^Italian\s+/i, "")
+                      .replace(/^German\s+/i, "")
+                      .replace(/^French\s+/i, "")}
+                  </span>
                 </Link>
               </li>
             );

@@ -37,15 +37,14 @@ rankks
 │  │  ├─ content-header.tsx
 │  │  ├─ content-nav.tsx
 │  │  ├─ date-selector.tsx
-│  │  ├─ highlights-section.tsx
 │  │  ├─ main-nav.tsx
 │  │  ├─ shortcut-nav.tsx
 │  │  ├─ sidebar.tsx
 │  │  ├─ standings-table.tsx
 │  │  ├─ sub-nav.tsx
+│  │  ├─ team-badge-image.tsx
 │  │  └─ year-selector.tsx
 │  └─ lib
-│     ├─ highlightly.ts
 │     ├─ prisma.ts
 │     ├─ thesportsdb.ts
 │     └─ utils.ts

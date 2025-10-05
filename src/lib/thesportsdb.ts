@@ -8,7 +8,6 @@ if (!API_KEY) {
     "THESPORTSDB_API_KEY is not set in the environment variables."
   );
 }
-// Correctly construct the base URL with your API key
 const API_BASE_URL = `https://www.thesportsdb.com/api/v1/json/${API_KEY}`;
 
 // --- Cached Generic Fetcher ---
@@ -56,8 +55,8 @@ export interface StandingAPI {
   intRank: string;
   idTeam: string;
   strTeam: string;
-  strBadge?: string; // The actual property name from the API, now correctly typed.
-  strTeamBadge?: string; // The consistent property name our app will use.
+  strBadge?: string;
+  strTeamBadge?: string;
   intPlayed: string;
   intWin: string;
   intDraw: string;
@@ -82,9 +81,20 @@ export async function getAllSports(): Promise<SportAPI[]> {
   return data?.sports || [];
 }
 
+// Updated to fetch detailed league info with badges
 export async function getAllLeagues(): Promise<LeagueAPI[]> {
   const data = await fetchFromAPI<{ leagues: LeagueAPI[] }>("all_leagues.php");
-  return data?.leagues || [];
+  if (!data?.leagues) return [];
+  
+  // Fetch detailed info for each league to get badges
+  const leaguesWithDetails = await Promise.all(
+    data.leagues.map(async (league) => {
+      const detailedLeague = await getLeagueDetails(league.idLeague);
+      return detailedLeague || league;
+    })
+  );
+  
+  return leaguesWithDetails;
 }
 
 export async function getLeagueDetails(
@@ -106,11 +116,8 @@ export async function getStandings(
 
   if (!data?.table) return null;
 
-  // Normalize the API's inconsistent property names right here.
-  // This ensures the rest of the app gets clean, predictable data.
   return data.table.map((standing) => ({
     ...standing,
-    // Create a consistent `strTeamBadge` property from the API's `strBadge`.
     strTeamBadge: standing.strBadge || standing.strTeamBadge,
   }));
 }

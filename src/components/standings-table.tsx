@@ -25,16 +25,16 @@ export default function StandingsTable({
   }
 
   const tableHeaders = [
-    "#",
+    "",
     "Club",
-    "P",
-    "W",
-    "D",
-    "L",
+    "Played",
+    "Won",
+    "Drawn",
+    "Lost",
     "GF",
     "GA",
     "GD",
-    "Pts",
+    "Points",
     "More",
   ];
 
@@ -46,7 +46,7 @@ export default function StandingsTable({
             {tableHeaders.map((header, i) => (
               <th
                 key={header}
-                className={`px-3 py-2 uppercase text-xs tracking-wider ${
+                className={`px-3 py-2 text-xs tracking-wider ${
                   i === 0 || i > 1 ? "text-center" : "text-left"
                 } ${i === 1 ? "w-1/3" : "w-12"}`}
               >

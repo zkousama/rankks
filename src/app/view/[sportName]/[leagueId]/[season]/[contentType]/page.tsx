@@ -11,6 +11,7 @@ import {
 import ContentNav from "@/components/content-nav";
 import ContentHeader from "@/components/content-header";
 import SubNav from "@/components/sub-nav";
+import BreadcrumbNav from "@/components/breadcrumb-nav";
 
 interface LeaguePageProps {
   params: Promise<{
@@ -64,7 +65,7 @@ export default async function LeaguePage({
     getTeamsByLeagueId(leagueId),
   ]);
 
-  let enrichedStandings: StandingAPI[] | null = currentStandings; // Explicitly type the variable
+  let enrichedStandings: StandingAPI[] | null = currentStandings;
 
   if (currentStandings && allTeamsInLeague) {
     const teamBadgeMap = new Map<string, string>();
@@ -74,14 +75,11 @@ export default async function LeaguePage({
       }
     });
 
-    // The key is ensuring the return type of this map is always a full StandingAPI object
-    enrichedStandings = currentStandings.map((standing): StandingAPI => { // Explicitly type the return of the map function
+    enrichedStandings = currentStandings.map((standing): StandingAPI => {
       const badgeUrl = teamBadgeMap.get(standing.idTeam);
       if (badgeUrl) {
-        // Use spread syntax to copy all original properties
         return { ...standing, strTeamBadge: badgeUrl };
       }
-      // If no badge is found, return the original, unmodified object
       return standing;
     });
   }
@@ -155,6 +153,11 @@ export default async function LeaguePage({
                 winner={winner}
                 participations={stats.participations}
                 titles={stats.titles}
+              />
+              <BreadcrumbNav 
+                leagueName={leagueDetails.strLeague}
+                season={season}
+                contentType={contentType}
               />
               <div className="bg-card shadow-sm">{renderContent()}</div>
             </div>

@@ -25,20 +25,20 @@ export default function ContentNav({
   ];
 
   return (
-    <nav className="flex items-center justify-between border-b border-border bg-card px-4">
-      <div className="flex items-center gap-4">
+    <nav className="flex items-center justify-between border-b border-border bg-card px-6" style={{ height: '57px' }}>
+      <div className="flex items-center gap-6 h-full">
         {navItems.map((item) => (
           <Link
             key={item.name}
             href={`${basePath}/${item.slug}`}
             className={cn(
-              "py-3 border-b-2 text-sm font-semibold transition-colors",
+              "h-full flex items-center border-b-2 text-sm font-semibold transition-colors uppercase tracking-wide",
               currentContentType === item.slug
                 ? "border-accent text-accent"
                 : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
             )}
           >
-            {item.name.toUpperCase()}
+            {item.name}
           </Link>
         ))}
       </div>
